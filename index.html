@@ -1,0 +1,1074 @@
+<!doctype html>
+
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Takt Planning Visualization</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href='https://fonts.googleapis.com/css?family=Lato:400,700' rel='stylesheet' type='text/css'>
+    <script src="https://d3js.org/d3.v7.min.js" charset="utf-8"></script>
+    <script src="https://dagrejs.github.io/project/dagre-d3/latest/dagre-d3.min.js"></script>
+    <script type="text/javascript" src="https://code.jquery.com/jquery-1.7.1.min.js"></script>
+    
+    <style>
+      .view{
+        float: left;
+        /* width: 100px;
+        height: 100px; */
+        border-color: rgb(54, 54, 54);
+        border-width: 0.5px;
+        border-style: dashed;
+        font-size: large;
+      }
+
+      .column-2col-layout {
+        float: left;
+        padding: 10px;
+      }
+
+      /* Clear floats after the columns */
+      .row:after {
+        content: "";
+        display: table;
+        clear: both;
+      }
+      .zone-tag{
+        background-color: white;
+        color: black;
+        margin: auto;
+        width: 10px;
+        text-align: center;
+        font-size: 15px;
+      }
+
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 120px;
+        background-color: black;
+        color: #fff;
+        text-align: center;
+        border-radius: 6px;
+        padding: 5px 0;
+
+        /* Position the tooltip */
+        position: absolute;
+        z-index: 1;
+      }
+
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+      }
+
+      .bar{
+        margin: 10px 0 0 0;
+        height: 20px;
+      }
+
+      .bar-tag{
+        margin: 10px 0 0 0;
+        height:20px;
+      }
+
+      .bar-tag-zone{
+        margin: 10px 0 0 0;
+        height:20px;
+      }
+
+      .hr-spacing{
+        height: 10px;
+      }
+
+      /* cpm */
+      .node rect,
+      .node circle,
+      .node ellipse {
+        stroke: #333;
+        fill: #fff;
+        stroke-width: 1px;
+      }
+      .edgePath path {
+        stroke: #333;
+        fill: #333;
+        stroke-width: 1.5px;
+      }
+
+
+    </style>
+  </head>
+    <body>
+    <main>   
+      <h1>Takt Planning Visualization</h1>
+
+      <!-- Input fields -->
+      
+      <div class="row">
+        <div class="column-2col-layout" style="width: 60%">
+          <form id='input-form'>
+            <p><label for="row-height-input">Please input the row heights:</label></p>
+            <input type="text" id="row-height-input" name="row-height-input" style="width: calc(100% - 10px)" value=" 84.9, 26.4, 14.4, 189, 14.4">
+            <p><label for="col-width-input">Please input the column width:</label></p>
+            <input type="text" id="col-width-input" name="col-width-input" style="width: calc(100% - 10px)" value="84.8999864, 59.2877, 48.9716402, 77.7261747">
+            <p><label for="zoning-info-input">Please input the zoning info:</label></p>
+            <textarea id="zoning-info-input" name="zoning-info-input" style="width: calc(100% - 10px)">
+2, 7, 7, 7, 
+, 7, 3, 3, 
+, 4, 4, 4, 
+5, 5, 5, 5, 
+6, 6, , ,</textarea>
+            <p><label for="number-trade">Please specify the number of trades, and input work density below:</label></p>
+            <p>Number of trades: <span id="number-trade" style="display: inline">0</span></p>
+            <button type="button" onclick="addTrade()">Add</button>
+            <button type="button" onclick="subtractTrade()">Subtract</button>
+            <div id="cpm-container" style="margin: 10px"></div>
+
+            <svg width=700 height=80 style="border:rgb(189, 189, 189); border-style:dashed"><g/></svg>
+
+            <script >
+            var numTrade
+            function drawCPM(){
+              // Create a new directed graph
+
+            var g = new dagreD3.graphlib.Graph().setGraph({rankdir: "LR"});
+
+            var arrowhead = 'vee'
+
+              g.setNode("t1", { label: "Trade 1" });
+
+              for(i = 0; i < numTrade - 1; i++){
+                g.setNode("t" + (i + 2), { label: "Trade " + (i + 2) });
+                g.setEdge("t" + (i + 1),"t" + (i + 2), {
+                arrowhead: arrowhead,
+              });
+              }
+
+
+            var svg = d3.select("svg"),
+                inner = svg.select("g");
+
+            // Set up zoom support
+            var zoom = d3.zoom().on("zoom", function(e) {
+                  inner.attr("transform", e.transform);
+                });
+            svg.call(zoom);
+
+            // Create the renderer
+            var render = new dagreD3.render();
+
+            // Run the renderer. This is what draws the final graph.
+            render(inner, g);
+
+            // Center the graph
+            var initialScale = 1;
+            svg.call(zoom.transform, d3.zoomIdentity.translate((svg.attr("width") - g.graph().width * initialScale) / 2, 20).scale(initialScale));
+
+            //svg.attr('height', g.graph().height * initialScale + 40);
+            }
+            var svg = d3.select("svg")
+            svg.attr('width', window.innerWidth * 0.59)
+            console.log(window.innerWidth)
+            
+
+            </script>
+
+            <div id="workdensity-input"></div>
+
+            <script>
+              var numTrade = 0
+              var trade_colors
+              var wdContainer = document.getElementById('workdensity-input')
+              var inputForm = document.getElementById('input-form')
+
+              function addTrade(){
+                var label = document.createElement('p')
+                label.innerText = 'Trade ' + (numTrade + 1) + ':'
+                var textarea = document.createElement('textarea')
+                textarea.id = 'workdensity-input-' + (numTrade + 1) 
+                textarea.classList.add('workdensity-input')
+                textarea.style.width = 'calc(100% - 10px)'
+
+                wdContainer.append(label)
+                wdContainer.append(textarea)
+
+                var button = document.createElement('span')
+                button.innerHTML = '<button type=\'button\' onclick=\'wdButtonClicked('+ numTrade  +')\'>Trade '+ (numTrade + 1)  +'</button>'
+                // button.type = 'button'
+                // button.innerText = 'Trade ' + numTrade
+                // button.onclick = 'wdButtonClicked(' + numTrade + ')'
+
+                inputForm.append(button)
+
+                numTrade++
+                document.getElementById('number-trade').innerText = numTrade
+                drawCPM()
+              }
+              function subtractTrade(){
+                numTrade = parseInt(document.getElementById('number-trade').innerText)
+                if (numTrade > 0){
+                  wdContainer.removeChild(wdContainer.lastChild)
+                  wdContainer.removeChild(wdContainer.lastChild)
+                  inputForm.removeChild(inputForm.lastChild)
+                  numTrade--
+                  document.getElementById('number-trade').innerText = numTrade
+                } 
+                drawCPM()
+              }
+
+              function wdButtonClicked(tradeIndex){
+                var wd_max = getUniqueValues2D(wd_info[tradeIndex]).reduce((a,b)=>Math.max(a,b))
+                var wd_min = getUniqueValues2D(wd_info[tradeIndex]).reduce((a,b)=>Math.min(a,b))
+                var wd_range = wd_max - wd_min
+                for (let i = 0; i < row_count; i++){
+                  for(let j = 0; j < column_count; j++){
+                    var wd = Math.round(((wd_max - wd_info[tradeIndex][i][j])/wd_range * 255))
+                    var color = rgbToHex(wd,wd,wd)
+                    document.getElementById('view-' + i + j).style.backgroundColor = color
+                  }
+                }
+              }
+
+            </script>
+            <p>Please specify the selected takt. (Note: selected takt must be no greater than peak workload)</p>  
+            <input type="text" id="selected-takt-input" style="width: 60px" value="1">
+            <br><br>
+            <button type="button" onclick="submitZoningInfo()">Visualize</button>
+            <br><br>
+          </form>
+        </div>
+        <div class="column-2col-layout" style="width: 30%">
+          <p>Please specify color(s) for visualization:</p>
+          <div class="column-2col-layout" style="width: 40%">
+            <p>Zone</p>
+            <div id="zone-color-input"></div>
+          </div>
+          <div class="column-2col-layout" style="width: 40%">
+            <p>Trade</p>
+            <div id="trade-color-input"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Zoning map visualization -->
+      
+      <div id="zoning-map-container" style="margin: auto"></div>
+
+      <script>
+      var vw, vh
+      var unique_zones
+      var zone_colors = []
+
+      var row_height
+      var col_width
+      var total_height
+      var total_width
+      var zoning_info
+      var wd_info
+
+      var total_width_display
+      var col_width_display
+      var row_height_display
+
+      var row_count
+      var column_count
+      
+      //on resizing the window
+      $(window).resize(function() {
+        resizeZoningMap()
+        //resize cpm
+        var svg = d3.select("svg")
+        svg.attr('width', window.innerWidth * 0.59)
+      });
+      
+
+      function submitZoningInfo(){
+        updateWindowSize()
+
+        loadGridData()
+        loadZoningInfo()
+        loadWDInfo()
+
+        createZoningMap() 
+        createColorInput()
+
+        createBarChart()
+        generateTaktPlan()
+      }
+
+      function updateWindowSize(){
+        vw = document.documentElement.clientWidth
+        vh = document.documentElement.clientHeight
+      }
+
+      function loadGridData(){
+        var str_row_hieght = document.getElementById("row-height-input").value
+        var str_col_width = document.getElementById("col-width-input").value
+        row_height = CSVToArray1D(str_row_hieght)
+        col_width = CSVToArray1D(str_col_width)
+      }
+
+      function loadWDInfo(){
+        wd_info = []
+        for (let l = 0; l < numTrade; l++){
+          var str_wd_info = document.getElementById('workdensity-input-' + (l + 1)).value
+          wd_info.push(CSVToArray2D(str_wd_info))
+        }
+      }
+
+      function loadZoningInfo(){
+        var str_zoning_info = document.getElementById("zoning-info-input").value
+        zoning_info = CSVToArray2D(str_zoning_info)
+      }
+
+      function createZoningMap(){
+        row_count = row_height.length;
+        column_count = col_width.length;          
+        
+        total_height = row_height.reduce((partialSum, a) => partialSum + a, 0);
+        total_width = col_width.reduce((partialSum, a) => partialSum + a, 0);
+
+        //Declare and access viewport container
+        var viewContainer = document.getElementById("zoning-map-container")
+
+        //Clear view container
+        while (viewContainer.firstChild) {
+          viewContainer.removeChild(viewContainer.firstChild);
+        }
+
+        //Add title
+        var title = document.createElement('h2')
+        title.innerText = 'Zoning Map'
+        viewContainer.appendChild(title)
+
+        //Create cells 
+        for (let i = 0; i < row_count; i++) {
+          var row = document.createElement('div')
+          row.classList.add('row')
+          row.id = 'row-' + i
+          for(let j = 0; j<column_count; j++){
+            var view = document.createElement('div')
+            view.classList.add('view')
+            view.classList.add('row-' + i)
+            view.classList.add('column-' + j)
+            view.id = 'view-' + i + j
+
+            if(isNaN(zoning_info[i][j])){
+              view.style.borderColor = 'white'
+              view.classList.add('void')
+            } else{
+              view.classList.add('zone-' + zoning_info[i][j])           
+            }
+            row.appendChild(view)
+          }
+          viewContainer.appendChild(row)
+        }
+
+        //Convert to diplayed sizing
+        converToDispalySizes()
+
+        resizeCells()
+
+        addZoneTags()
+        addWDinfo()
+
+        alignZoningMap()
+      }
+
+      function alignZoningMap(){
+        document.getElementById('zoning-map-container').style.width = total_width_display + 10 + 'px'
+      }
+
+      function createColorInput(){
+        //Zone
+        //Declare and access viewport container
+        var colorInputContainer = document.getElementById('zone-color-input')
+
+        //Clear view container
+        while (colorInputContainer.firstChild) {
+          colorInputContainer.removeChild(colorInputContainer.firstChild);
+        }
+
+        //Create input fields & store zone colors
+        unique_zones = getUniqueValues2D(zoning_info)
+        zone_colors = []
+        unique_zones.forEach(zone => {
+          initialColor = getRandomColor()
+          zone_colors.push(initialColor)
+          document.querySelectorAll('.zone-' + zone).forEach(element =>{
+            element.style.backgroundColor = initialColor
+          })
+          
+          var field = document.createElement('div')
+          
+          field.innerHTML = 'Zone '+ zone +': <input type=\'color\' value = '+ initialColor +' onchange=\'colorChanged_zone('+ zone +')\'\ id=\'color-selector-zone-' + zone +'\'>'
+          colorInputContainer.append(field)
+        });
+
+        //Trade
+        //Declare and access viewport container
+        colorInputContainer = document.getElementById('trade-color-input')
+
+        //Clear view container
+        while (colorInputContainer.firstChild) {
+          colorInputContainer.removeChild(colorInputContainer.firstChild);
+        }
+
+        //Create input fields & store zone colors
+        trade_colors = []
+
+        for(i = 0; i < numTrade; i++){
+          initialColor = getRandomColor()
+          trade_colors.push(initialColor)
+          var field = document.createElement('div')         
+          field.innerHTML = 'Trade '+ (i + 1) +': <input type=\'color\' value = '+ initialColor +' onchange=\'colorChanged_trade('+ (i + 1) +')\'\ id=\'color-selector-trade-' + (i + 1) +'\'>'
+          colorInputContainer.append(field)
+        }
+      }
+
+      function colorChanged_zone(zone){
+        var colorSelected = document.getElementById('color-selector-zone-' + zone).value
+        zone_colors[unique_zones.indexOf(zone)] = colorSelected
+        //update colors for zoning map 
+        var cellsInZone = document.querySelectorAll('.zone-' + zone)
+        cellsInZone.forEach(cell =>{
+          cell.style.backgroundColor = colorSelected
+        })
+        //update colors for bar chart
+        createBarChart()
+      }
+
+      function colorChanged_trade(trade){
+        var colorSelected = document.getElementById('color-selector-trade-' + trade).value
+        trade_colors[(trade - 1)] = colorSelected
+        //update colors for bar chart
+        createBarChart() 
+        generateTaktPlan()
+      }
+
+      function resizeZoningMap(){
+        updateWindowSize()
+        converToDispalySizes()
+        resizeCells()
+        addZoneTags()
+        alignZoningMap()
+      }
+
+      function addZoneTags(){
+        document.querySelectorAll('.zone-tag').forEach(element => {
+          element.remove()
+        })
+        for(let i = 0; i < row_count; i++){
+          for(let j = 0; j < column_count; j++){
+            if(isNaN(zoning_info[i][j])){}else{
+              var view = document.getElementById('view-' + i + j)
+              var zoneTag = document.createElement('div')
+              zoneTag.classList.add('zone-tag')
+              zoneTag.innerText = zoning_info[i][j]
+
+              zoneTag.style.marginTop = (row_height_display[i]/2 - 15/2)  + 'px'
+              view.append(zoneTag)   
+            }
+          }
+        }
+      }
+
+      function addWDinfo(){
+        for(let i = 0; i < row_count; i++){
+          for(let j = 0; j < column_count; j++){
+            if(isNaN(zoning_info[i][j])){}else{
+              var view = document.getElementById('view-' + i + j)
+              view.classList.add('tooltip')
+              var wdTooltip = document.createElement('span')
+              wdTooltip.classList.add('tooltiptext') 
+              for(let l = 0; l < numTrade; l++){
+                wdTooltip.innerHTML = wdTooltip.innerHTML + 'Trade ' + (l + 1) + ': ' + wd_info[l][i][j] + '<br>'
+              }
+              view.append(wdTooltip)
+            }
+          }
+        }
+      }
+
+      function converToDispalySizes(){
+        col_width_display = []
+        row_height_display = []
+        if(total_width/total_height > vw/vh){
+              for (let i = 0; i < row_count; i++){
+                row_height_display.push(0.9 * row_height[i] / total_width * vw)
+              }
+              for (let j = 0; j < column_count; j++){
+                col_width_display.push(0.9 * col_width[j] / total_width * vw)
+              }
+
+            }else{
+
+              for (let i = 0; i < row_count; i++){
+                row_height_display.push(0.9 * row_height[i] / total_height * vh)
+              }
+              for (let j = 0; j < column_count; j++){
+                col_width_display.push(0.9 * col_width[j] / total_height * vh)
+              }
+            }  
+
+            total_width_display = col_width_display.reduce((partialSum, a) => partialSum + a, 0);
+      }
+
+      function resizeCells(){
+        for (let i = 0; i < row_count; i++){
+          document.querySelectorAll('.row-' + i).forEach(element =>{
+            element.style.height = row_height_display[i] + 'px'
+          })
+        }
+        for (let j = 0; j < column_count; j++){
+          document.querySelectorAll('.column-' + j).forEach(element =>{
+            element.style.width = col_width_display[j] + 'px'
+          })
+        }
+      }
+
+      //Toolbox
+
+      function CSVToArray2D(str) {
+        return str.split("\n").map(function(row){return CSVToArray1D(row)})
+      }
+
+      function CSVToArray1D(str) {
+        strArray = str.split(",")
+        numberArray = []
+        for (var i =0; i< strArray.length; i++){
+          numberArray.push(parseFloat(strArray[i]))
+        }
+        return numberArray
+      }
+
+      function getRandomColor() {
+        var letters = '0123456789ABCDEF';
+        var color = '#';
+        for (var i = 0; i < 6; i++) {
+          color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+      }
+
+      function onlyUnique(value, index, self) {
+        return self.indexOf(value) === index;
+      }
+      
+      function getUniqueValues2D(arr){
+        var newArr = []
+        for(var i = 0; i < arr.length; i++)
+        {
+            newArr = newArr.concat(arr[i]);
+        }
+        unique = newArr.filter(onlyUnique);
+        return unique = unique.sort()
+      }
+
+      //rgb to hex
+
+      function componentToHex(c) {
+        var hex = c.toString(16);
+        return hex.length == 1 ? "0" + hex : hex;
+      }
+
+      function rgbToHex(r, g, b) {
+        return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+      }      
+
+      </script>
+
+      <!-- Bar chart  -->
+      <div id="bar-chart-container" style="margin : auto"></div>
+      <script>
+        
+        function createBarChart(){//triggered when 'submit' clicked
+        var viewContainer = document.getElementById('bar-chart-container') 
+        
+        //Clear view container
+        while (viewContainer.firstChild) {
+          viewContainer.removeChild(viewContainer.firstChild);
+        }
+
+        //Grouped bar charts
+        kvpairs = []
+
+        for (i = 0; i < unique_zones.length; i++){
+          for(j = 0; j < wd_info.length; j++){
+          var wd_sum = 0
+            for (k = 0; k < zoning_info.length; k++){
+            for (l = 0; l < zoning_info[0].length; l++){
+              if(!isNaN(zoning_info[k][l]) && zoning_info[k][l] == unique_zones[i]){
+                wd_sum += wd_info[j][k][l]
+              }
+            }
+            }
+          var objEntry = []
+          objEntry.push(['zone', 'Zone ' + unique_zones[i]])
+          objEntry.push(['trade', 'Trade ' + (j + 1)])
+          objEntry.push(['wd', wd_sum])
+          kvpairs.push(Object.fromEntries(objEntry))
+          }
+        }
+
+        unique_zones_label = []
+        unique_zones.forEach(ele => {unique_zones_label.push('Zone ' + ele)})
+
+        var trade_label = []
+        for(i = 0; i < numTrade; i++){
+          trade_label.push('Trade ' + (i + 1))
+        }
+
+        var groupedBarChart_zone = GroupedBarChart(kvpairs, {
+        x: d => d.zone,
+        y: d => d.wd,
+        z: d => d.trade,
+        xDomain: unique_zones_label,
+        yLabel: "↑ Work Load",
+        zDomain: trade_label,
+        colors: d3.schemeSpectral[wd_info.length],
+        width: 640,
+        height: 500,
+        colors: trade_colors
+        })
+
+        var title_grouped_zone = document.createElement('h3')
+        title_grouped_zone.innerText = 'Work Density by Zone'
+        viewContainer.appendChild(title_grouped_zone)
+        viewContainer.appendChild(groupedBarChart_zone)
+
+        var groupedBarChart_trade = GroupedBarChart(kvpairs, {
+        x: d => d.trade,
+        y: d => d.wd,
+        z: d => d.zone,
+        xDomain: trade_label,
+        yLabel: "↑ Work Load",
+        zDomain: unique_zones_label,
+        colors: d3.schemeSpectral[wd_info.length],
+        width: 640,
+        height: 500,
+        colors: zone_colors
+        })
+
+        var title_grouped_trade = document.createElement('h3')
+        title_grouped_trade.innerText = 'Work Density by Trade'
+        viewContainer.appendChild(title_grouped_trade)
+        viewContainer.appendChild(groupedBarChart_trade)
+        //end of grouped bar chart
+
+      //Summed bar charts
+        //organize input for conversion function
+          var info = []
+          var keys = []
+          info.push(zoning_info)
+          keys.push('zone')
+          for (i = 0; i < wd_info.length; i++){
+            info.push(wd_info[i])
+            keys.push('wd_trade_' + (i + 1))
+          }
+          
+          var kvpairs = convert2DArrayToKVPairs(keys, info)
+          
+          //sum by zone
+
+          var sumByZone = []
+          
+          for (i = 0; i < unique_zones.length; i++){
+            var objEntry = []
+            objEntry.push(['zone', 'Zone ' + unique_zones[i]])
+            var wd_sum = 0
+            for (j = 0; j < wd_info.length; j++){
+              wd_sum += sumByGroup(kvpairs, 'zone', unique_zones[i], 'wd_trade_' + (j + 1))
+            }
+            objEntry.push(['wd', wd_sum])
+            sumByZone.push(Object.fromEntries(objEntry))
+          }
+          
+          //sum by trade
+
+          var sumByTrade = []
+
+          for (i = 0; i < wd_info.length; i++){
+            var objEntry = []
+            objEntry.push(['trade', 'Trade ' +  (i + 1)])
+            var wd_sum = 0
+            for (j=0; j<unique_zones.length; j++){
+              wd_sum += sumByGroup(kvpairs, 'zone', unique_zones[j], 'wd_trade_' + (i + 1))
+            }
+            objEntry.push(['wd', wd_sum])
+            sumByTrade.push(Object.fromEntries(objEntry))
+          }
+
+          console.log(sumByTrade)
+
+          var barChartByZone = BarChart(sumByZone, {
+            x: d => d.zone,
+            y: d => d.wd,
+            xDomain: d3.groupSort(sumByZone, ([d]) => -d.wd, d => d.zone), // sort by descending frequency
+            yFormat: "",
+            yLabel: "↑ Work Load",
+            width: 500,
+            height: 500,
+            colors: zone_colors
+          })
+
+          var barChartByTrade = BarChart(sumByTrade, {
+            x: d => d.trade,
+            y: d => d.wd,
+            xDomain: d3.groupSort(sumByTrade, ([d]) => -d.wd, d => d.trade), // sort by descending frequency
+            yFormat: "",
+            yLabel: "↑ Work Load",
+            width: 500,
+            height: 500,
+            colors: trade_colors
+          })
+          
+          var title_zone = document.createElement('h3')
+          title_zone.innerText = 'Work Density Summed By Zone'
+          viewContainer.appendChild(title_zone)
+          viewContainer.appendChild(barChartByZone)
+
+          var title_trade = document.createElement('h3')
+          title_trade.innerText = 'Work Density Summed By Trade'
+          viewContainer.appendChild(title_trade)
+          viewContainer.appendChild(barChartByTrade)
+          // end of summed bar charts
+        }
+
+        function convert2DArrayToKVPairs(keys, arrays){//key.length = arrays.length
+          var newArray = []
+          for(i = 0; i < arrays[0].length; i++){
+            for(j = 0; j < arrays[0][0].length; j++){
+              if(!isNaN(zoning_info[i][j])){
+                var objEntry = []
+                objEntry.push(['X', i])
+                objEntry.push(['Y', j])
+                for(k = 0; k< arrays.length; k++){
+                  objEntry.push([keys[k], arrays[k][i][j]])
+                } 
+                newArray.push(Object.fromEntries(objEntry))
+              }
+            }
+          }
+          return newArray
+        }
+
+        function sumByGroup (arr, groupKey, groupValue, sumKey){ //eg (kvpairs, 'zone', 1, 'wd_trade_2') 
+          var toSum = arr.filter(ele => ele[groupKey] == groupValue)
+          return toSum.reduce((total,obj) => obj[sumKey] + total, 0)
+        }
+
+        function BarChart(data, {
+        x = (d, i) => i, // given d in data, returns the (ordinal) x-value
+        y = d => d, // given d in data, returns the (quantitative) y-value
+        title, // given d in data, returns the title text
+        marginTop = 20, // the top margin, in pixels
+        marginRight = 0, // the right margin, in pixels
+        marginBottom = 30, // the bottom margin, in pixels
+        marginLeft = 40, // the left margin, in pixels
+        width = 640, // the outer width of the chart, in pixels
+        height = 400, // the outer height of the chart, in pixels
+        xDomain, // an array of (ordinal) x-values
+        xRange = [marginLeft, width - marginRight], // [left, right]
+        yType = d3.scaleLinear, // y-scale type
+        yDomain, // [ymin, ymax]
+        yRange = [height - marginBottom, marginTop], // [bottom, top]
+        xPadding = 0.1, // amount of x-range to reserve to separate bars
+        yFormat, // a format specifier string for the y-axis
+        yLabel, // a label for the y-axis
+        colors = "currentColor" // bar fill color
+      } = {}) {
+        // Compute values.
+        const X = d3.map(data, x);
+        const Y = d3.map(data, y);
+
+        // Compute default domains, and unique the x-domain.
+        if (xDomain === undefined) xDomain = X;
+        if (yDomain === undefined) yDomain = [0, d3.max(Y)];
+        xDomain = new d3.InternSet(xDomain);
+
+        // Omit any data not present in the x-domain.
+        const I = d3.range(X.length).filter(i => xDomain.has(X[i]));
+
+        // Construct scales, axes, and formats.
+        const xScale = d3.scaleBand(xDomain, xRange).padding(xPadding);
+        const yScale = yType(yDomain, yRange);
+        const xAxis = d3.axisBottom(xScale).tickSizeOuter(0);
+        const yAxis = d3.axisLeft(yScale).ticks(height / 40, yFormat);
+
+        // Compute titles.
+        if (title === undefined) {
+          const formatValue = yScale.tickFormat(100, yFormat);
+          title = i => `${X[i]}\n${formatValue(Y[i])}`;
+        } else {
+          const O = d3.map(data, d => d);
+          const T = title;
+          title = i => T(O[i], i, data);
+        }
+
+        const svg = d3.create("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height])
+            .attr("style", "max-width: 100%; height: auto; height: intrinsic;");
+
+        svg.append("g")
+            .attr("transform", `translate(${marginLeft},0)`)
+            .call(yAxis)
+            .call(g => g.select(".domain").remove())
+            .call(g => g.selectAll(".tick line").clone()
+                .attr("x2", width - marginLeft - marginRight)
+                .attr("stroke-opacity", 0.1))
+            .call(g => g.append("text")
+                .attr("x", -marginLeft)
+                .attr("y", 10)
+                //.attr("fill", "currentColor")
+                .attr("fill", i => colors[i])
+                .attr("text-anchor", "start")
+                .text(yLabel));
+
+        const bar = svg.append("g")
+          .selectAll("rect")
+          .data(I)
+          .join("rect")
+            .attr("x", i => xScale(X[i]))
+            .attr("y", i => yScale(Y[i]))
+            .attr("fill", i => colors[i])
+            .attr("height", i => yScale(0) - yScale(Y[i]))
+            .attr("width", xScale.bandwidth());
+
+        if (title) bar.append("title")
+            .text(title);
+
+        svg.append("g")
+            .attr("transform", `translate(0,${height - marginBottom})`)
+            .call(xAxis);
+
+        return svg.node();
+      }
+
+
+        // Copyright 2021 Observable, Inc.
+        // Released under the ISC license.
+        // https://observablehq.com/@d3/grouped-bar-chart
+        function GroupedBarChart(data, {
+          x = (d, i) => i, // given d in data, returns the (ordinal) x-value
+          y = d => d, // given d in data, returns the (quantitative) y-value
+          z = () => 1, // given d in data, returns the (categorical) z-value
+          title, // given d in data, returns the title text
+          marginTop = 30, // top margin, in pixels
+          marginRight = 0, // right margin, in pixels
+          marginBottom = 30, // bottom margin, in pixels
+          marginLeft = 40, // left margin, in pixels
+          width = 640, // outer width, in pixels
+          height = 400, // outer height, in pixels
+          xDomain, // array of x-values
+          xRange = [marginLeft, width - marginRight], // [xmin, xmax]
+          xPadding = 0.1, // amount of x-range to reserve to separate groups
+          yType = d3.scaleLinear, // type of y-scale
+          yDomain, // [ymin, ymax]
+          yRange = [height - marginBottom, marginTop], // [ymin, ymax]
+          zDomain, // array of z-values
+          zPadding = 0.05, // amount of x-range to reserve to separate bars
+          yFormat, // a format specifier string for the y-axis
+          yLabel, // a label for the y-axis
+          colors = d3.schemeTableau10, // array of colors
+        } = {}) {
+          // Compute values.
+          const X = d3.map(data, x);
+          const Y = d3.map(data, y);
+          const Z = d3.map(data, z);
+
+          // Compute default domains, and unique the x- and z-domains.
+          if (xDomain === undefined) xDomain = X;
+          if (yDomain === undefined) yDomain = [0, d3.max(Y)];
+          if (zDomain === undefined) zDomain = Z;
+          xDomain = new d3.InternSet(xDomain);
+          zDomain = new d3.InternSet(zDomain);
+
+          // Omit any data not present in both the x- and z-domain.
+          const I = d3.range(X.length).filter(i => xDomain.has(X[i]) && zDomain.has(Z[i]));
+
+          // Construct scales, axes, and formats.
+          const xScale = d3.scaleBand(xDomain, xRange).paddingInner(xPadding);
+          const xzScale = d3.scaleBand(zDomain, [0, xScale.bandwidth()]).padding(zPadding);
+          const yScale = yType(yDomain, yRange);
+          const zScale = d3.scaleOrdinal(zDomain, colors);
+          const xAxis = d3.axisBottom(xScale).tickSizeOuter(0);
+          const yAxis = d3.axisLeft(yScale).ticks(height / 60, yFormat);
+
+          // Compute titles.
+          if (title === undefined) {
+            const formatValue = yScale.tickFormat(100, yFormat);
+            title = i => `${X[i]}\n${Z[i]}\n${formatValue(Y[i])}`;
+          } else {
+            const O = d3.map(data, d => d);
+            const T = title;
+            title = i => T(O[i], i, data);
+          }
+
+          const svg = d3.create("svg")
+              .attr("width", width)
+              .attr("height", height)
+              .attr("viewBox", [0, 0, width, height])
+              .attr("style", "max-width: 100%; height: auto; height: intrinsic;");
+
+          svg.append("g")
+              .attr("transform", `translate(${marginLeft},0)`)
+              .call(yAxis)
+              .call(g => g.select(".domain").remove())
+              .call(g => g.selectAll(".tick line").clone()
+                  .attr("x2", width - marginLeft - marginRight)
+                  .attr("stroke-opacity", 0.1))
+              .call(g => g.append("text")
+                  .attr("x", -marginLeft)
+                  .attr("y", 10)
+                  .attr("fill", "currentColor")
+                  .attr("text-anchor", "start")
+                  .text(yLabel));
+
+          const bar = svg.append("g")
+            .selectAll("rect")
+            .data(I)
+            .join("rect")
+              .attr("x", i => xScale(X[i]) + xzScale(Z[i]))
+              .attr("y", i => yScale(Y[i]))
+              .attr("width", xzScale.bandwidth())
+              .attr("height", i => yScale(0) - yScale(Y[i]))
+              .attr("fill", i => zScale(Z[i]));
+
+          if (title) bar.append("title")
+              .text(title);
+
+          svg.append("g")
+              .attr("transform", `translate(0,${height - marginBottom})`)
+              .call(xAxis);
+
+          return Object.assign(svg.node(), {scales: {color: zScale}});
+        }
+
+      </script>
+
+      <!-- Takt Plan -->
+      <div id="takt-plan-container" style="max-height: 60vh;"></div>
+      <script>
+        var unique_zones_label
+        function generateTaktPlan(){
+          var selectedTakt = 1
+          var temp = document.getElementById('selected-takt-input').value
+          if(!isNaN(temp)){
+            selectedTakt = temp
+          }
+
+          var viewContainer = document.getElementById("takt-plan-container")
+          //Clear view container
+          while (viewContainer.firstChild) {
+            viewContainer.removeChild(viewContainer.firstChild);
+          }
+
+          var margin = ({top: 20, right: 40, bottom: 40, left: 40})
+          var height = 30
+          var width = 30
+
+          getData = () => {
+            var names = unique_zones_label;
+            var takt0 = 0; //min takt
+            var takt1 = unique_zones.length + numTrade - 1; //max takt
+            var takts_temp = d3.range(takt0, takt1 + 1); //all takts in array
+
+            takt0 = takt0 * selectedTakt
+            takt1 = takt1 * selectedTakt
+            var takts = []
+            takts_temp.forEach(ele => takts.push(ele * selectedTakt))
+
+            getValues = () => {
+              var values = []
+              for(j = 0; j < unique_zones.length; j++){
+                var row = []
+                k = 1
+                for(i = 0; i < takts.length; i++){
+                  if(i >= j && k <= numTrade ){
+                    row.push(k)
+                    k++
+                  } else{
+                    row.push(0)
+                  }
+                }
+                values.push(row)
+              }
+              return values
+            }
+
+            values = getValues()
+
+            return {
+              values,
+              names,
+              takts,
+            };
+          }
+
+          var data = getData()
+
+          var innerWidth = width * (data.takts.length - 1)
+          var innerHeight = height * data.names.length
+
+          yAxis = g => g
+            .attr("transform", `translate(${margin.left},0)`)
+            .call(d3.axisLeft(y).tickSize(0))
+            .call(g => g.select(".domain").remove())
+
+          xAxis = g => g
+            .call(g => g.append("g")
+              .attr("transform", `translate(0,${margin.top})`)
+              .call(d3.axisTop(x).tickValues(data.takts)) //add top axis
+              .call(g => g.select(".domain").remove()))
+
+          console.log(data.takts)
+
+          color = trade_colors
+
+          y = d3.scaleBand()
+            .domain(data.names)
+            .rangeRound([margin.top, margin.top + innerHeight])
+
+          x = d3.scaleLinear()
+            .domain([d3.min(data.takts), d3.max(data.takts)])
+            .range([margin.left, innerWidth + margin.left])
+
+          getChart = () => {
+            const svg = d3.create("svg")
+                .attr("viewBox", [0, 0, innerWidth + margin.left + margin.right, innerHeight + margin.top + margin.bottom])
+                .attr("font-family", "sans-serif")
+                .attr("font-size", 10)
+                .attr("style", "max-height:80vh; max-width:80vw")
+
+            svg.append("g")
+              .selectAll("g")
+              .data(data.values)
+              .join("g")
+                .attr("transform", (d, i) => `translate(0,${y(data.names[i])})`)
+              .selectAll("rect")
+              .data(d => d)
+              .join("rect")
+                .attr("x", (d, i) => x(data.takts[i]) + 1)
+                .attr("width", (d, i) => selectedTakt * (x(data.takts[i] + 1) - x(data.takts[i])) - 1)
+                //.attr('width', width - 1)
+                .attr("height", y.bandwidth() - 1)
+                .attr("fill", d => isNaN(d) ? "#eee" : d === 0 ? "#fff" : trade_colors[(d - 1)])
+
+            svg.append("g")
+                .call(xAxis);
+
+            svg.append("g")
+                .call(yAxis);
+            
+            return svg.node();
+          }
+          var title_takt = document.createElement('h2')
+          title_takt.innerText = 'Takt Plan'
+          viewContainer.appendChild(title_takt)
+          viewContainer.appendChild(getChart())
+        }
+
+      </script>
+
+    </main> 
+  </body>
